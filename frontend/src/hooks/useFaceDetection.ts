@@ -1,53 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Webcam from 'react-webcam'
-import { toast } from 'sonner'
-import { verifyFacePreview } from '../api/face'
 
 interface UseFaceDetectionProps {
   isOpen: boolean
   capturedImage: string | null
-  isChecking: boolean
+  isChecking?: boolean // Optional now
   webcamRef: React.RefObject<Webcam | null>
   onAutoCapture: (imageSrc: string) => void
+  verifyFn: (image: string) => Promise<{ similarity: number; verified: boolean; detected?: boolean }>
 }
 
 export const useFaceDetection = ({
   isOpen,
   capturedImage,
-  isChecking,
   webcamRef,
   onAutoCapture,
+  verifyFn,
 }: UseFaceDetectionProps) => {
   const [similarity, setSimilarity] = useState<number | null>(null)
-  const [isPreviewing, setIsPreviewing] = useState(false)
-  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [isDetecting, setIsDetecting] = useState(false)
   const detectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDetectingRef = useRef(false)
   const consecutiveDetectionsRef = useRef(0)
 
-  const previewSimilarity = useCallback(async (imageSrc: string) => {
-    try {
-      setIsPreviewing(true)
-      setPreviewError(null)
-      const base64Image = imageSrc.split(',')[1]
-      const response = await verifyFacePreview({ image: base64Image })
-      setSimilarity(response.similarity * 100)
-      if (response.verified) {
-        toast.success('얼굴 인식 성공', {
-          description: `유사도 ${(response.similarity * 100).toFixed(1)}%`,
-          duration: 1500,
-        })
-      }
-    } catch (error: any) {
-      setSimilarity(null)
-      setPreviewError('유사도 확인 중 오류가 발생했습니다.')
-    } finally {
-      setIsPreviewing(false)
-    }
-  }, [])
-
   const detect = useCallback(async () => {
-    if (!isOpen || capturedImage || isChecking || !webcamRef.current) {
+    if (!isOpen || capturedImage || !webcamRef.current) {
       if (detectionTimeoutRef.current) clearTimeout(detectionTimeoutRef.current)
       return
     }
@@ -64,13 +41,17 @@ export const useFaceDetection = ({
     }
 
     try {
-      setIsPreviewing(true)
+      setIsDetecting(true)
       isDetectingRef.current = true
       const base64Image = imageSrc.split(',')[1]
       
-      const response = await verifyFacePreview({ image: base64Image })
+      const response = await verifyFn(base64Image)
       
-      if (response.detected) {
+      // Check if detected is present (some APIs might not return it, assume detected if no error?)
+      // But verifyFacePreview returns detected.
+      const isDetected = response.detected !== false
+      
+      if (isDetected) {
         const similarityPercent = response.similarity * 100
         setSimilarity(similarityPercent)
 
@@ -78,7 +59,7 @@ export const useFaceDetection = ({
           consecutiveDetectionsRef.current += 1
 
           if (consecutiveDetectionsRef.current >= 2) {
-            console.log('Auto capturing for check-in...')
+            console.log('Auto capturing...')
             onAutoCapture(imageSrc)
             consecutiveDetectionsRef.current = 0
           }
@@ -93,17 +74,16 @@ export const useFaceDetection = ({
       consecutiveDetectionsRef.current = 0
       setSimilarity(null)
     } finally {
-      setIsPreviewing(false)
+      setIsDetecting(false)
       isDetectingRef.current = false
       if (isOpen && !capturedImage) {
         detectionTimeoutRef.current = setTimeout(detect, 500)
       }
     }
-  }, [isOpen, capturedImage, isChecking, webcamRef, onAutoCapture])
+  }, [isOpen, capturedImage, webcamRef, onAutoCapture, verifyFn])
 
   const resetDetection = useCallback(() => {
     setSimilarity(null)
-    setPreviewError(null)
     consecutiveDetectionsRef.current = 0
   }, [])
 
@@ -124,9 +104,7 @@ export const useFaceDetection = ({
 
   return {
     similarity,
-    isPreviewing,
-    previewError,
-    previewSimilarity,
+    isDetecting,
     resetDetection,
   }
 }

@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import { useWebcam } from '../../hooks/useWebcam'
 import { useCheckIn } from '../../hooks/useCheckIn'
 import { useFaceDetection } from '../../hooks/useFaceDetection'
+import { useFacePreview } from '../../hooks/useFacePreview'
 import { useThemeStore } from '../../stores/theme-store'
+import { verifyFacePreview } from '../../api/face'
 import { CheckInCamera } from './CheckInCamera'
 import { CheckInStatus } from './CheckInStatus'
 import { CheckInActions } from './CheckInActions'
@@ -45,16 +47,23 @@ export const CheckInModal = ({ isOpen, onClose, onSuccess, webcamRef }: CheckInM
     isPreviewing,
     previewError,
     previewSimilarity,
+    resetPreview,
+  } = useFacePreview({
+    verifyFn: (image) => verifyFacePreview({ image }),
+  })
+
+  const {
+    similarity: detectedSimilarity,
     resetDetection,
   } = useFaceDetection({
     isOpen,
     capturedImage,
-    isChecking,
     webcamRef,
     onAutoCapture: (imageSrc) => {
       handleAutoCapture(imageSrc)
       previewSimilarity(imageSrc)
     },
+    verifyFn: (image) => verifyFacePreview({ image }),
   })
 
   const onManualCapture = useCallback(() => {
@@ -73,16 +82,20 @@ export const CheckInModal = ({ isOpen, onClose, onSuccess, webcamRef }: CheckInM
   const onRetake = useCallback(() => {
     handleRetake()
     resetDetection()
-  }, [handleRetake, resetDetection])
+    resetPreview()
+  }, [handleRetake, resetDetection, resetPreview])
 
   useEffect(() => {
     if (!isOpen) {
       resetCapture()
       resetDetection()
+      resetPreview()
     }
-  }, [isOpen, resetCapture, resetDetection])
+  }, [isOpen, resetCapture, resetDetection, resetPreview])
 
   if (!isOpen) return null
+
+  const currentSimilarity = capturedImage ? similarity : detectedSimilarity
 
   return (
     <AnimatePresence>
@@ -131,7 +144,7 @@ export const CheckInModal = ({ isOpen, onClose, onSuccess, webcamRef }: CheckInM
           />
 
           <CheckInStatus
-            similarity={similarity}
+            similarity={currentSimilarity}
             isPreviewing={isPreviewing}
             previewError={previewError}
           />

@@ -1,10 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Camera, CheckCircle, Loader2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Webcam from 'react-webcam'
 import { toast } from 'sonner'
 import { previewAdminFace } from '../../api/admin'
 import { useWebcam } from '../../hooks/useWebcam'
+import { useFaceDetection } from '../../hooks/useFaceDetection'
+import { useFacePreview } from '../../hooks/useFacePreview'
 import { useThemeStore } from '../../stores/theme-store'
 
 interface AdminFaceVerificationModalProps {
@@ -24,12 +26,6 @@ export const AdminFaceVerificationModal = ({
 }: AdminFaceVerificationModalProps) => {
   const { isDark } = useThemeStore()
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
-  const [similarity, setSimilarity] = useState<number | null>(null)
-  const [isPreviewing, setIsPreviewing] = useState(false)
-  const [previewError, setPreviewError] = useState<string | null>(null)
-  const detectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isDetectingRef = useRef(false)
-  const consecutiveDetectionsRef = useRef(0)
 
   const {
     availableDevices,
@@ -39,39 +35,49 @@ export const AdminFaceVerificationModal = ({
     handleUserMediaError,
   } = useWebcam()
 
-  const previewSimilarity = useCallback(
-    async (imageSrc: string) => {
-      if (!userId) {
-        setPreviewError('아이디를 입력해주세요.')
-        setSimilarity(null)
-        return
-      }
-
-      try {
-        setIsPreviewing(true)
-        setPreviewError(null)
-        const base64Image = imageSrc.split(',')[1]
-        const response = await previewAdminFace({ userId, image: base64Image })
-        setSimilarity(response.similarity * 100)
-        if (response.verified) {
-          toast.success('얼굴 인식 성공', {
-            description: `유사도 ${(response.similarity * 100).toFixed(1)}%`,
-            duration: 1000,
-          })
-          // 인증 성공 시 자동으로 완료 처리
-          setTimeout(() => {
-            onVerified(imageSrc)
-          }, 800)
+  const {
+    similarity,
+    isPreviewing,
+    previewError,
+    previewSimilarity,
+    resetPreview,
+  } = useFacePreview({
+    verifyFn: async (image) => {
+        if (!userId) {
+            throw new Error('아이디를 입력해주세요.')
         }
-      } catch (error: any) {
-        setSimilarity(null)
-        setPreviewError(error.response?.data?.detail || '유사도 계산에 실패했습니다.')
-      } finally {
-        setIsPreviewing(false)
-      }
+        return previewAdminFace({ userId, image })
     },
-    [userId],
+    onSuccess: (imageSrc) => {
+        // 인증 성공 시 자동으로 완료 처리
+        setTimeout(() => {
+            onVerified(imageSrc)
+        }, 800)
+    }
+  })
+
+  const handleAutoCapture = useCallback(
+    (imageSrc: string) => {
+      setCapturedImage(imageSrc)
+      toast.success('얼굴이 감지되어 촬영되었습니다.', { duration: 2000 })
+      previewSimilarity(imageSrc)
+    },
+    [previewSimilarity],
   )
+
+  const {
+    similarity: detectedSimilarity,
+    resetDetection,
+  } = useFaceDetection({
+    isOpen,
+    capturedImage,
+    webcamRef,
+    onAutoCapture: handleAutoCapture,
+    verifyFn: async (image) => {
+        if (!userId) return { similarity: 0, verified: false, detected: false }
+        return previewAdminFace({ userId, image })
+    }
+  })
 
   const handleCapture = useCallback(() => {
     try {
@@ -93,88 +99,19 @@ export const AdminFaceVerificationModal = ({
 
   const handleRetake = () => {
     setCapturedImage(null)
-    setSimilarity(null)
-    setPreviewError(null)
-    consecutiveDetectionsRef.current = 0
+    resetPreview()
+    resetDetection()
   }
-
-  const handleAutoCapture = useCallback(
-    (imageSrc: string) => {
-      setCapturedImage(imageSrc)
-      toast.success('얼굴이 감지되어 촬영되었습니다.', { duration: 2000 })
-      previewSimilarity(imageSrc)
-    },
-    [previewSimilarity],
-  )
-
-  const detect = useCallback(async () => {
-    if (!isOpen || capturedImage || !webcamRef.current) {
-      if (detectionTimeoutRef.current) clearTimeout(detectionTimeoutRef.current)
-      return
-    }
-
-    if (isDetectingRef.current) {
-      detectionTimeoutRef.current = setTimeout(detect, 200)
-      return
-    }
-
-    const imageSrc = webcamRef.current.getScreenshot()
-    if (!imageSrc) {
-      detectionTimeoutRef.current = setTimeout(detect, 200)
-      return
-    }
-
-    try {
-      setIsPreviewing(true)
-      isDetectingRef.current = true
-      const base64Image = imageSrc.split(',')[1]
-      const result = await previewAdminFace({ userId, image: base64Image })
-
-      const similarityPercent = result.similarity * 100
-      setSimilarity(similarityPercent)
-
-      if (result.verified && similarityPercent >= 70) {
-        consecutiveDetectionsRef.current += 1
-
-        if (consecutiveDetectionsRef.current >= 2) {
-          console.log('Auto capturing for admin login...')
-          handleAutoCapture(imageSrc)
-          consecutiveDetectionsRef.current = 0
-        }
-      } else {
-        consecutiveDetectionsRef.current = 0
-      }
-    } catch (error) {
-      setSimilarity(null)
-      consecutiveDetectionsRef.current = 0
-    } finally {
-      setIsPreviewing(false)
-      isDetectingRef.current = false
-      if (isOpen && !capturedImage) {
-        detectionTimeoutRef.current = setTimeout(detect, 500)
-      }
-    }
-  }, [isOpen, capturedImage, webcamRef, handleAutoCapture, userId])
-
-  useEffect(() => {
-    if (isOpen && !capturedImage) {
-      detect()
-    }
-    return () => {
-      if (detectionTimeoutRef.current) clearTimeout(detectionTimeoutRef.current)
-    }
-  }, [detect, isOpen, capturedImage])
 
   useEffect(() => {
     if (!isOpen) {
-      setCapturedImage(null)
-      setSimilarity(null)
-      setPreviewError(null)
-      consecutiveDetectionsRef.current = 0
+      handleRetake()
     }
   }, [isOpen])
 
   if (!isOpen) return null
+
+  const currentSimilarity = capturedImage ? similarity : detectedSimilarity
 
   return (
     <AnimatePresence>
@@ -264,13 +201,13 @@ export const AdminFaceVerificationModal = ({
             <div className="mt-2 flex items-center justify-between">
               <div>
                 <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-zinc-500'}`}>얼굴 감지</span>
-                <p className={`font-bold ${similarity !== null ? 'text-green-500' : 'text-slate-400'}`}>
-                  {similarity !== null ? '감지됨' : '미감지'}
+                <p className={`font-bold ${currentSimilarity !== null ? 'text-green-500' : 'text-slate-400'}`}>
+                  {currentSimilarity !== null ? '감지됨' : '미감지'}
                 </p>
               </div>
               <div className="text-right">
                 <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-zinc-500'}`}>유사도</span>
-                <p className="font-bold">{similarity !== null ? `${similarity.toFixed(1)}%` : '--'}</p>
+                <p className="font-bold">{currentSimilarity !== null ? `${currentSimilarity.toFixed(1)}%` : '--'}</p>
               </div>
             </div>
             {previewError ? (

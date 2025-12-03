@@ -1,53 +1,22 @@
 import apiClient from './client'
+import type {
+  OrganizationCreate,
+  OrganizationResponse,
+  OrganizationMemberAdd,
+  OrganizationMemberResponse,
+  OrganizationDetailResponse,
+} from '../types/organization'
+import type { AttendanceStatsResponse, AttendanceCheckRequest } from '../types/attendance'
 
-export interface OrganizationCreate {
-  name: string
-  type: string
+// Re-export for backward compatibility
+export type {
+  OrganizationCreate,
+  OrganizationResponse,
+  OrganizationMemberAdd,
+  OrganizationMemberResponse,
+  OrganizationDetailResponse,
 }
-
-export interface OrganizationResponse {
-  id: number
-  name: string
-  type: string
-  adminId: number
-  createdAt: string
-  memberCount?: number
-}
-
-export interface OrganizationMemberAdd {
-  userId: string
-}
-
-export interface OrganizationMemberResponse {
-  id: number
-  organizationId: number
-  userId: number
-  userName: string
-  userUserId: string
-  role: string
-  joinedAt: string
-}
-
-export interface OrganizationDetailResponse {
-  id: number
-  name: string
-  type: string
-  adminId: number
-  createdAt: string
-  members: OrganizationMemberResponse[]
-}
-
-export interface AttendanceCheckRequest {
-  organizationId: number
-  image: string
-}
-
-export interface AttendanceStatsResponse {
-  totalMembers: number
-  todayCount: number
-  participationRate: number
-  records: any[]
-}
+export type { AttendanceStatsResponse, AttendanceCheckRequest }
 
 export const createOrganization = async (data: OrganizationCreate): Promise<OrganizationResponse> => {
   const response = await apiClient.post<OrganizationResponse>('/organizations', data)
@@ -92,4 +61,3 @@ export const getUserOrganizations = async (): Promise<OrganizationResponse[]> =>
   const response = await apiClient.get<OrganizationResponse[]>('/users/organizations')
   return response.data
 }
-

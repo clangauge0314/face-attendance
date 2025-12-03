@@ -129,7 +129,7 @@ export const AttendanceChart = () => {
       </div>
 
       <motion.div
-        key={period} // Re-render chart when period changes
+        key={period}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3, duration: 0.5 }}

@@ -1,14 +1,17 @@
 import { motion } from 'framer-motion'
-import { Users, Clock, CheckCircle, TrendingUp, Calendar } from 'lucide-react'
+import { Users, CheckCircle, TrendingUp } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useThemeStore } from '../stores/theme-store'
 import { getOrganization, getTodayAttendance, type OrganizationDetailResponse, type AttendanceStatsResponse } from '../api/organization'
+import { PageHeader } from '../components/common/page-header'
+import { LoadingSpinner } from '../components/common/loading-spinner'
+import { StatsCard } from '../components/common/stats-card'
+import { DashboardRecentRecords } from '../components/dashboard/dashboard-recent-records'
 
 export const AttendanceDashboardPage = () => {
   const { isDark } = useThemeStore()
-  const navigate = useNavigate()
   const { organizationId } = useParams<{ organizationId: string }>()
   const [organization, setOrganization] = useState<OrganizationDetailResponse | null>(null)
   const [stats, setStats] = useState<AttendanceStatsResponse | null>(null)
@@ -48,71 +51,36 @@ export const AttendanceDashboardPage = () => {
   }
 
   if (isLoading || !organization || !stats) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Clock className={`animate-spin ${isDark ? 'text-white' : 'text-zinc-900'}`} size={48} />
-      </div>
-    )
+    return <LoadingSpinner />
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className={`border-b px-8 py-6 ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-zinc-200 bg-white/50'}`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-              {organization.name} 출입 현황
-            </h1>
-            <p className={`mt-2 text-sm ${isDark ? 'text-slate-400' : 'text-zinc-500'}`}>
-              오늘의 실시간 출입 현황을 확인하세요
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/admin/organizations')}
-            className={`rounded-xl px-4 py-2 font-semibold transition-colors ${
-              isDark ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-zinc-200 text-zinc-900 hover:bg-zinc-300'
-            }`}
-          >
-            조직 관리로
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title={`${organization.name} 출입 현황`}
+        description="오늘의 실시간 출입 현황을 확인하세요"
+        backButton={{ label: "조직 관리로", to: "/admin/organizations" }}
+      />
 
       <div className="flex-1 overflow-y-auto p-8">
         <div className="mx-auto max-w-6xl space-y-6">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`rounded-3xl border p-6 ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-zinc-200 bg-white'}`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-zinc-500'}`}>전체 인원</div>
-                  <div className={`mt-2 text-3xl font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                    {stats.totalMembers}
-                  </div>
-                </div>
-                <Users className={isDark ? 'text-slate-600' : 'text-zinc-300'} size={40} />
-              </div>
-            </motion.div>
+            <StatsCard
+              label="전체 인원"
+              value={stats.totalMembers}
+              icon={Users}
+              iconColorClass={isDark ? 'text-slate-600' : 'text-zinc-300'}
+            />
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className={`rounded-3xl border p-6 ${isDark ? 'border-green-900 bg-green-950/30' : 'border-green-200 bg-green-50'}`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className={`text-sm ${isDark ? 'text-green-400' : 'text-green-600'}`}>오늘 출입</div>
-                  <div className={`mt-2 text-3xl font-bold ${isDark ? 'text-green-400' : 'text-green-600'}`}>
-                    {stats.todayCount}
-                  </div>
-                </div>
-                <CheckCircle className="text-green-500" size={40} />
-              </div>
-            </motion.div>
+            <StatsCard
+              label="오늘 출입"
+              value={stats.todayCount}
+              icon={CheckCircle}
+              className={`${isDark ? 'border-green-900 bg-green-950/30' : 'border-green-200 bg-green-50'}`}
+              valueColorClass={isDark ? 'text-green-400' : 'text-green-600'}
+              iconColorClass="text-green-500"
+              delay={0.1}
+            />
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -138,51 +106,9 @@ export const AttendanceDashboardPage = () => {
             </motion.div>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className={`rounded-3xl border p-6 ${isDark ? 'border-slate-800 bg-slate-900/50' : 'border-zinc-200 bg-white'}`}
-          >
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                오늘의 출입 기록
-              </h2>
-              <Calendar className={isDark ? 'text-slate-400' : 'text-zinc-500'} size={20} />
-            </div>
-
-            <div className="space-y-2">
-              {stats.records.map((record: any) => (
-                <div
-                  key={record.id}
-                  className={`flex items-center justify-between rounded-xl border p-4 ${
-                    isDark ? 'border-slate-800 bg-slate-800/30' : 'border-zinc-200 bg-zinc-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="text-green-500" size={20} />
-                    <div>
-                      <div className={`font-semibold ${isDark ? 'text-white' : 'text-zinc-900'}`}>
-                        {record.userName}
-                      </div>
-                      <div className={`text-sm ${isDark ? 'text-slate-400' : 'text-zinc-500'}`}>
-                        {new Date(record.checkInTime).toLocaleTimeString('ko-KR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-green-500/20 px-3 py-1 text-sm font-semibold text-green-500">
-                    출입 완료
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+          <DashboardRecentRecords records={stats.records} delay={0.3} />
         </div>
       </div>
     </div>
   )
 }
-

@@ -1,35 +1,50 @@
 import apiClient from './client'
+import type {
+  AdminLoginRequest,
+  AdminLoginResponse,
+  AdminLoginLog,
+  AdminFacePreviewRequest,
+  AdminFacePreviewResponse,
+  AdminDashboardStats,
+  AdminUser,
+  AdminAttendanceRecord,
+  AdminAttendanceStats,
+} from '../types/user'
+import type { AttendanceStatsResponse } from '../types/attendance' // Fix: Import correct types
 
-export interface AdminLoginRequest {
-  userId: string
-  password: string
-  image?: string
-}
+// Re-export types for backward compatibility if needed, or better update consumers
+export type {
+  AdminLoginRequest,
+  AdminLoginResponse,
+  AdminLoginLog,
+  AdminFacePreviewRequest,
+  AdminFacePreviewResponse,
+  AdminDashboardStats,
+  AdminUser,
+  AdminAttendanceRecord,
+  AdminAttendanceStats
+} 
 
-export interface AdminLoginResponse {
-  access_token: string
-  user: {
-    id: number
-    organizationType: string
-    name: string
-    userId: string
-    createdAt: string
-  }
-}
+// Note: AdminAttendanceRecord and Stats were moved to attendance.ts or user.ts depending on logic.
+// Let's check where I put them. 
+// AdminAttendanceRecord -> attendance.ts
+// AdminAttendanceStats -> attendance.ts
+// Wait, I put them in attendance.ts in previous step? Let me double check.
+// I put AdminLogin... in user.ts
+// AdminDashboardStats in user.ts
+// AdminUser in user.ts
+// AdminAttendanceRecord in attendance.ts
+// AdminAttendanceStats in attendance.ts
 
-export interface AdminLoginLog {
-  id: number
-  userId: number
-  loginTime: string
-  ipAddress: string | null
-  userAgent: string | null
-  faceVerified: string
-  similarity: string | null
-  status: string
-  createdAt: string
-  userName: string | null
-  userUserId: string | null
-}
+import type {
+    AdminAttendanceRecord as _AdminAttendanceRecord,
+    AdminAttendanceStats as _AdminAttendanceStats
+} from '../types/attendance'
+
+// Correcting re-exports based on where I actually put them
+export type AdminAttendanceRecord = _AdminAttendanceRecord
+export type AdminAttendanceStats = _AdminAttendanceStats
+
 
 export const adminLogin = async (data: AdminLoginRequest): Promise<AdminLoginResponse> => {
   const response = await apiClient.post<AdminLoginResponse>('/admin/login', data)
@@ -48,40 +63,14 @@ export const getAdminLoginLogs = async (limit = 100, offset = 0): Promise<AdminL
   return response.data
 }
 
-export interface AdminFacePreviewRequest {
-  userId: string
-  image: string
-}
-
-export interface AdminFacePreviewResponse {
-  similarity: number
-  verified: boolean
-}
-
 export const previewAdminFace = async (data: AdminFacePreviewRequest): Promise<AdminFacePreviewResponse> => {
   const response = await apiClient.post<AdminFacePreviewResponse>('/admin/face-preview', data)
   return response.data
 }
 
-export interface AdminDashboardStats {
-  totalUsers: number
-  todayEntries: number
-  thisMonthEntries: number
-}
-
 export const getAdminDashboardStats = async (): Promise<AdminDashboardStats> => {
   const response = await apiClient.get<AdminDashboardStats>('/admin/dashboard-stats')
   return response.data
-}
-
-export interface AdminUser {
-  id: number
-  name: string
-  userId: string
-  organizationType: string
-  role: string
-  createdAt: string
-  faceDataRegistered: boolean
 }
 
 export const getAdminUsers = async (): Promise<AdminUser[]> => {
@@ -101,17 +90,6 @@ export const deleteUserFaceData = async (userId: number): Promise<void> => {
   await apiClient.delete(`/admin/users/${userId}/face`)
 }
 
-export interface AdminAttendanceRecord {
-  id: number
-  userId: number
-  userName: string
-  userUserId: string
-  organizationName: string | null
-  checkInTime: string
-  similarity: string | null
-  createdAt: string
-}
-
 export const getAdminAttendanceHistory = async (
   limit = 100, 
   offset = 0,
@@ -126,18 +104,6 @@ export const getAdminAttendanceHistory = async (
   
   const response = await apiClient.get<AdminAttendanceRecord[]>('/admin/attendance-history', { params })
   return response.data
-}
-
-export interface AdminAttendanceStatsItem {
-  label: string
-  count: number
-}
-
-export interface AdminAttendanceStats {
-  daily: AdminAttendanceStatsItem[]
-  hourly: AdminAttendanceStatsItem[]
-  organizations: AdminAttendanceStatsItem[]
-  userRanking: AdminAttendanceStatsItem[]
 }
 
 export const getAdminAttendanceStats = async (): Promise<AdminAttendanceStats> => {
